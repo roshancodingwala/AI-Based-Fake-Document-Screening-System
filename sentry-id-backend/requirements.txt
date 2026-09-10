@@ -10,10 +10,18 @@ sqlalchemy>=2.0
 # psycopg2-binary>=2.9        # uncomment + set DATABASE_URL for Postgres
 
 # --- Prototype AI / vision -----------------------------------------------
-opencv-python-headless>=4.9
+# NOTE: mediapipe>=1.0 requires opencv-contrib-python (not headless).
+# Do NOT add opencv-python-headless alongside this — they conflict.
+opencv-contrib-python>=4.9
 pillow>=10.2
 numpy>=1.26
 networkx>=3.2
+
+# --- Real face detection & alignment (3.1 Biometrics) --------------------
+# MediaPipe ships pre-built wheels for Windows / Linux / macOS (Python 3.9-3.12).
+# CPU-only, no CUDA required. Model weights (~32 MB) are downloaded automatically
+# the first time the detector is initialised.
+mediapipe>=1.0
 
 # --- Testing --------------------------------------------------------------
 pytest>=8.1

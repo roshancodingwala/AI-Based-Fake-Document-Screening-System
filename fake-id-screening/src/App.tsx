@@ -13,6 +13,7 @@ const Identity = lazy(() => import("./pages/Identity"));
 const FraudNetwork = lazy(() => import("./pages/FraudNetwork"));
 const DocumentDNA = lazy(() => import("./pages/DocumentDNA"));
 const DocumentHistory = lazy(() => import("./pages/DocumentHistory"));
+const BiometricDetection = lazy(() => import("./pages/BiometricDetection"));
 const Checkpoints = lazy(() => import("./pages/Checkpoints"));
 const Alerts = lazy(() => import("./pages/Alerts"));
 const Blockchain = lazy(() => import("./pages/Blockchain"));
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="/screening" element={<Shell><Screening /></Shell>} />
             <Route path="/results" element={<Shell><Results /></Shell>} />
             <Route path="/identity" element={<Shell><Identity /></Shell>} />
+            <Route path="/biometrics" element={<Shell><BiometricDetection /></Shell>} />
             <Route path="/fraud-network" element={<Shell><FraudNetwork /></Shell>} />
             <Route path="/document-dna" element={<Shell><DocumentDNA /></Shell>} />
             <Route path="/history" element={<Shell><DocumentHistory /></Shell>} />

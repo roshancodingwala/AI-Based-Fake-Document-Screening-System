@@ -9,6 +9,7 @@ from app.core.config import get_settings
 from app.core.logging_config import configure_logging
 from app.db.seed import seed_if_empty
 from app.routers import ai_testing, audit, documents, face, fraud, identity, intelligence, risk, screen
+from app.services.face_detection_service import warm_up_face_detector
 
 configure_logging()
 logger = logging.getLogger("sentry_id.main")
@@ -18,8 +19,12 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     seed_if_empty()
+    # Pre-load the real face detection model so the first /detect request
+    # does not bear the model-initialisation latency.
+    warm_up_face_detector()
     logger.info("startup_complete environment=%s", settings.environment)
     yield
+
 
 
 app = FastAPI(
