@@ -1,6 +1,5 @@
 {
-  "buildCommand": "cd fake-id-screening && npm run build",
-  "outputDirectory": "fake-id-screening/dist",
+  "rootDirectory": "fake-id-screening",
   "framework": "vite",
   "rewrites": [
     {
