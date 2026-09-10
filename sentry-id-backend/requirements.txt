@@ -1,0 +1,36 @@
+# --- Core API framework -----------------------------------------------
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+pydantic-settings>=2.2
+python-multipart>=0.0.9
+
+# --- Data layer ---------------------------------------------------------
+sqlalchemy>=2.0
+# psycopg2-binary>=2.9        # uncomment + set DATABASE_URL for Postgres
+
+# --- Prototype AI / vision -----------------------------------------------
+opencv-python-headless>=4.9
+pillow>=10.2
+numpy>=1.26
+networkx>=3.2
+
+# --- Testing --------------------------------------------------------------
+pytest>=8.1
+httpx>=0.27
+
+# ---------------------------------------------------------------------------
+# PRODUCTION-GRADE MODEL DEPENDENCIES (not installed in the prototype sandbox)
+# ---------------------------------------------------------------------------
+# Uncomment and install these when swapping in real models per the
+# "swap-in" notes at the top of each services/*.py file. They are commented
+# out by default because they are large (multi-GB) and need GPU/ONNX
+# runtime setup that a prototype environment typically doesn't have.
+#
+# paddleocr>=2.7               # app/services/ocr_service.py -> PaddleOCRService
+# paddlepaddle>=2.6
+# torch>=2.2                   # app/services/tampering_service.py / face_service.py
+# insightface>=0.7.3           # app/services/face_service.py -> InsightFaceService
+# onnxruntime>=1.17
+# faiss-cpu>=1.8.0             # app/services/identity_service.py -> FAISS-backed index
+# qdrant-client>=1.8           # app/services/identity_service.py -> Qdrant-backed index
