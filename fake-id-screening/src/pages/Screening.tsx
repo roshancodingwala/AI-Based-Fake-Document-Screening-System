@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   BookUser,
@@ -8,11 +8,18 @@ import {
   FileBadge2,
   Camera,
   UploadCloud,
+  X,
 } from "lucide-react";
 import { Panel, PanelHeader, StageIcon, DemoTag } from "../components/Common";
 import { verificationPipelineStages } from "../data/mockData";
 import type { StageStatus } from "../data/mockData";
 import { API_BASE_URL, API_KEY } from "../lib/utils";
+import {
+  getBiometricSession,
+  clearBiometricSession,
+  base64ToFile,
+} from "../lib/biometricSession";
+import type { BiometricSession } from "../lib/biometricSession";
 
 const docOptions = [
   { key: "passport", label: "Passport", icon: BookUser },
@@ -31,6 +38,11 @@ export default function Screening() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [biometricSession, setBiometricSession] = useState<BiometricSession | null>(null);
+
+  useEffect(() => {
+    setBiometricSession(getBiometricSession());
+  }, []);
 
   const handleFileSelect = (file: File) => {
     setSelectedFile(file);
@@ -63,6 +75,14 @@ export default function Screening() {
         "Terminal 3 - Counter 4"
       );
       formData.append("officer_id", "OFFICER-DEMO-001");
+
+      if (biometricSession?.alignedFaceB64) {
+        const liveFile = base64ToFile(
+          biometricSession.alignedFaceB64,
+          "aligned_live_photo.jpg"
+        );
+        formData.append("live_photo", liveFile);
+      }
 
       const response = await fetch(`${API_BASE_URL}/api/screen`, {
         method: "POST",
@@ -173,7 +193,44 @@ export default function Screening() {
             </button>
           </div>
 
-          <div className="border-t border-base-border p-4">
+          <div className="border-t border-base-border p-4 space-y-3">
+            {/* Attached Live Biometric Capture Banner */}
+            {biometricSession && (
+              <div className="flex items-center justify-between rounded-lg border border-accent/40 bg-accent-bg/40 p-3">
+                <div className="flex items-center gap-3">
+                  <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-md border border-accent/40 bg-base-panel2 shadow-inner">
+                    <img
+                      src={`data:image/jpeg;base64,${biometricSession.alignedFaceB64}`}
+                      alt="Attached live face"
+                      className="h-full w-full object-cover"
+                    />
+                    <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-success border border-base-panel" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-ink">Live Biometric Attached</span>
+                      <span className="rounded bg-accent/20 px-1.5 py-0.2 font-mono text-[9px] font-semibold text-accent">
+                        3.1 ALIGNED
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-ink-muted">
+                      {biometricSession.confidence ? `${(biometricSession.confidence * 100).toFixed(0)}% conf` : "Validated"} · {biometricSession.rotationAngle}° rot · {biometricSession.outputWidth}×{biometricSession.outputHeight}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearBiometricSession();
+                    setBiometricSession(null);
+                  }}
+                  className="rounded p-1 text-ink-faint hover:bg-base-panel hover:text-ink transition"
+                  title="Detach live photo"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
 
             <label
               htmlFor="document-upload"
@@ -199,7 +256,7 @@ export default function Screening() {
               <input
                 id="document-upload"
                 type="file"
-                accept=".jpg,.jpeg,.png,.pdf"
+                accept=".jpg,.jpeg,.png,.pdf,.webp,.bmp,.tiff,application/pdf,image/*"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];

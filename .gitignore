@@ -20,3 +20,20 @@ venv/
 
 .vercel
 **/.vercel
+
+# Runtime data — do not commit
+sentry-id-backend/extracted_faces/
+sentry-id-backend/sentry_id.db
+
+# Test artifacts
+sentry-id-backend/test_id_document.pdf
+fake-id-screening/public/sample_face.jpg
+fake-id-screening/public/sample_face.png
+fake-id-screening/public/test_id_document.pdf
+
+# IDE
+.vscode/
+
+# Python test cache
+.pytest_cache/
+**/.pytest_cache/

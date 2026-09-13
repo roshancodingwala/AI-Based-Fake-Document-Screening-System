@@ -18,7 +18,20 @@ logger = logging.getLogger("sentry_id.uploads")
 async def validate_upload(file: UploadFile) -> bytes:
     settings = get_settings()
 
-    if file.content_type not in settings.allowed_content_types:
+    content_type = (file.content_type or "").lower()
+    generic_types = {"application/octet-stream", "binary/octet-stream", ""}
+    
+    if content_type in generic_types:
+        import os
+        allowed_exts = {".jpg", ".jpeg", ".png", ".pdf", ".webp", ".bmp", ".tiff"}
+        file_ext = os.path.splitext(file.filename or "")[1].lower()
+        if file_ext not in allowed_exts:
+            logger.warning("security_event=rejected_upload reason=bad_file_extension ext=%s", file_ext)
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail=f"Unsupported file extension '{file_ext}'. Allowed: {sorted(allowed_exts)}",
+            )
+    elif content_type not in settings.allowed_content_types:
         logger.warning("security_event=rejected_upload reason=bad_content_type type=%s", file.content_type)
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,

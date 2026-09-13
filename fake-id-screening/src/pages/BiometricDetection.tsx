@@ -15,6 +15,7 @@
  */
 
 import { useRef, useState, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ScanFace,
   UploadCloud,
@@ -28,9 +29,15 @@ import {
   Eye,
   Crosshair,
   RotateCcw,
+  ArrowRight,
+  UserSearch,
+  Download,
+  FolderCheck,
+  FileImage,
 } from "lucide-react";
 import { Panel, PanelHeader, StatCard, StageIcon } from "../components/Common";
 import { API_BASE_URL, API_KEY, cn } from "../lib/utils";
+import { saveBiometricSession, clearBiometricSession } from "../lib/biometricSession";
 
 // ---------------------------------------------------------------------------
 // Types mirroring the backend FaceDetectResponse schema
@@ -64,6 +71,10 @@ interface FaceDetectResult {
   aligned_face_b64:     string | null;
   model:                string;
   message:              string | null;
+  extracted_face_path?: string | null;
+  extracted_face_filename?: string | null;
+  extracted_face_url?:  string | null;
+  document_preview_b64?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -244,6 +255,7 @@ function StatusMessage({ result }: { result: FaceDetectResult }) {
 // ---------------------------------------------------------------------------
 
 export default function BiometricDetection() {
+  const navigate = useNavigate();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl,   setPreviewUrl]   = useState<string | null>(null);
   const [naturalW,     setNaturalW]     = useState(0);
@@ -267,11 +279,18 @@ export default function BiometricDetection() {
   const handleFile = (file: File) => {
     resetState();
     setSelectedFile(file);
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-    const img = new Image();
-    img.onload = () => { setNaturalW(img.naturalWidth); setNaturalH(img.naturalHeight); };
-    img.src = url;
+    const isPdf = file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf";
+    if (isPdf) {
+      setPreviewUrl(null);
+      setNaturalW(800);
+      setNaturalH(600);
+    } else {
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+      const img = new Image();
+      img.onload = () => { setNaturalW(img.naturalWidth); setNaturalH(img.naturalHeight); };
+      img.src = url;
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -349,6 +368,30 @@ export default function BiometricDetection() {
       const data: FaceDetectResult = await response.json();
       markStepsFromResult(data);
       setResult(data);
+
+      if (data.document_preview_b64) {
+        const preview = `data:image/jpeg;base64,${data.document_preview_b64}`;
+        setPreviewUrl(preview);
+        const img = new Image();
+        img.onload = () => {
+          setNaturalW(img.naturalWidth);
+          setNaturalH(img.naturalHeight);
+        };
+        img.src = preview;
+      }
+
+      if (data.success && data.aligned_face_b64) {
+        saveBiometricSession({
+          alignedFaceB64: data.aligned_face_b64,
+          confidence: data.detection_confidence,
+          rotationAngle: data.alignment.rotation_angle,
+          faceCount: data.face_count,
+          outputWidth: data.alignment.output_width,
+          outputHeight: data.alignment.output_height,
+          timestamp: new Date().toISOString(),
+          sourceName: selectedFile?.name,
+        });
+      }
     } catch (err) {
       await animPromise;
       setStepStatuses(Array(PIPELINE_STEPS.length).fill("failed"));
@@ -377,7 +420,7 @@ export default function BiometricDetection() {
             3.1 — Biometric Preprocessing
           </h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Face Detection &amp; Alignment · Real MediaPipe CV analysis. Upload a single-face image to begin.
+            Face Detection &amp; Alignment · Real MediaPipe CV analysis. Upload a document or image to begin.
           </p>
         </div>
         <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent-bg px-3 py-1 text-xs font-semibold text-accent">
@@ -390,7 +433,10 @@ export default function BiometricDetection() {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
         {/* Upload */}
         <Panel className="xl:col-span-2">
-          <PanelHeader title="Upload Image" subtitle="JPEG or PNG, up to 10 MB" />
+          <PanelHeader
+            title="Upload Document or Image"
+            subtitle="Any document format: PDF, JPEG, PNG, WEBP, BMP up to 10 MB"
+          />
           <div className="p-4 space-y-4">
             <label
               htmlFor="face-upload"
@@ -398,34 +444,41 @@ export default function BiometricDetection() {
               onDragOver={(e) => e.preventDefault()}
               className={cn(
                 "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-8 text-center transition",
-                previewUrl
+                previewUrl || selectedFile
                   ? "border-accent/50 bg-accent-bg/30"
                   : "border-base-border2 bg-base-panel2 hover:border-accent/50"
               )}
             >
               <UploadCloud size={28} className="text-ink-faint" />
               <p className="text-sm font-medium text-ink">
-                {selectedFile ? selectedFile.name : "Drag & drop or click to browse"}
+                {selectedFile ? selectedFile.name : "Drag & drop document or image (PDF, JPG, PNG, WEBP)"}
               </p>
-              <p className="text-xs text-ink-faint">Single face image recommended</p>
+              <p className="text-xs text-ink-faint">Passports, ID cards, visas, or face photos in any format</p>
               <input
                 id="face-upload"
                 ref={fileInputRef}
                 type="file"
-                accept="image/jpeg,image/png"
+                accept=".pdf,.jpg,.jpeg,.png,.webp,.bmp,.tiff,application/pdf,image/*"
                 className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
               />
             </label>
 
-            {previewUrl && (
+            {selectedFile && (
               <div className="flex items-center justify-between rounded-md border border-base-border bg-base-panel2 px-3 py-2">
-                <span className="font-mono text-xs text-accent truncate max-w-[160px]">
-                  {selectedFile?.name}
-                </span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="rounded bg-accent/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-accent shrink-0">
+                    {selectedFile.name.split(".").pop()?.toUpperCase() || "DOC"}
+                  </span>
+                  <span className="font-mono text-xs text-ink truncate">
+                    {selectedFile.name}
+                  </span>
+                </div>
                 <button
+                  type="button"
                   onClick={() => {
-                    setSelectedFile(null); setPreviewUrl(null);
+                    setSelectedFile(null);
+                    setPreviewUrl(null);
                     resetState();
                     if (fileInputRef.current) fileInputRef.current.value = "";
                   }}
@@ -634,6 +687,55 @@ export default function BiometricDetection() {
             </div>
           )}
 
+          {/* ── Extracted Person Image Disk Storage Details ── */}
+          {result.extracted_face_filename && (
+            <Panel className="border-accent/30 bg-base-panel">
+              <PanelHeader
+                title="Person Image Extracted to Folder"
+                subtitle="Person image detected from document and stored in extraction directory"
+                right={
+                  <span className="flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2.5 py-0.5 text-[10px] font-semibold text-success">
+                    <FolderCheck size={12} /> SAVED TO DISK
+                  </span>
+                }
+              />
+              <div className="p-4 space-y-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-base-border2 bg-base-panel2 p-3.5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent border border-accent/30 shadow-inner">
+                      <FileImage size={22} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-bold text-ink truncate font-mono">
+                          {result.extracted_face_filename}
+                        </p>
+                        <span className="rounded bg-accent/20 px-1.5 py-0.2 text-[9px] font-mono text-accent">
+                          JPEG 224×224
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-ink-muted mt-0.5 font-mono truncate">
+                        Directory: {result.extracted_face_path || "sentry-id-backend/extracted_faces/"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <a
+                      href={`${API_BASE_URL}/api/face/extracted/${result.extracted_face_filename}`}
+                      download={result.extracted_face_filename}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-base transition hover:bg-accent-dim shadow-sm"
+                    >
+                      <Download size={13} /> Download Face Image
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </Panel>
+          )}
+
           {/* Landmark detail table */}
           {result.landmarks && (
             <Panel>
@@ -670,18 +772,74 @@ export default function BiometricDetection() {
             </Panel>
           )}
 
-          {/* Reset button */}
-          <div className="flex justify-center">
-            <button
-              onClick={() => {
-                setSelectedFile(null); setPreviewUrl(null); resetState();
-                if (fileInputRef.current) fileInputRef.current.value = "";
-              }}
-              className="flex items-center gap-2 rounded-md border border-base-border2 bg-base-panel px-4 py-2 text-sm text-ink-muted hover:border-accent hover:text-ink"
-            >
-              <RefreshCw size={14} /> Analyze Another Image
-            </button>
-          </div>
+          {/* ── Proceed Action Panel / Reset ── */}
+          {result.success && result.aligned_face_b64 ? (
+            <Panel className="border-accent/40 bg-gradient-to-r from-accent-bg/40 via-base-panel to-base-panel p-5 shadow-lg">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent/20 text-accent border border-accent/30 shadow-inner">
+                    <ScanFace size={24} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-ink">Biometric Preprocessing Complete</h3>
+                      <span className="rounded-full bg-success/15 border border-success/30 px-2.5 py-0.5 text-[10px] font-bold text-success uppercase tracking-wide">
+                        Ready to Proceed
+                      </span>
+                    </div>
+                    <p className="text-xs text-ink-muted mt-1">
+                      Aligned facial crop normalised ({result.alignment.output_width}×{result.alignment.output_height}, {confidencePct} confidence). Forward this capture into the screening pipeline:
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    id="proceed-screening-btn"
+                    onClick={() => navigate("/screening")}
+                    className="flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-base transition hover:bg-accent-dim shadow-sm"
+                  >
+                    Proceed to Document Screening <ArrowRight size={16} />
+                  </button>
+
+                  <button
+                    id="proceed-identity-btn"
+                    onClick={() => navigate("/identity")}
+                    className="flex items-center gap-2 rounded-md border border-accent/40 bg-accent-bg px-3.5 py-2 text-sm font-semibold text-accent transition hover:bg-accent/20"
+                  >
+                    <UserSearch size={15} /> Proceed to Identity Investigation
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      clearBiometricSession();
+                      setSelectedFile(null);
+                      setPreviewUrl(null);
+                      resetState();
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }}
+                    className="flex items-center gap-1.5 rounded-md border border-base-border2 bg-base-panel2 px-3 py-2 text-xs text-ink-muted hover:border-accent hover:text-ink transition"
+                  >
+                    <RefreshCw size={13} /> Re-scan
+                  </button>
+                </div>
+              </div>
+            </Panel>
+          ) : (
+            <div className="flex justify-center">
+              <button
+                onClick={() => {
+                  setSelectedFile(null);
+                  setPreviewUrl(null);
+                  resetState();
+                  if (fileInputRef.current) fileInputRef.current.value = "";
+                }}
+                className="flex items-center gap-2 rounded-md border border-base-border2 bg-base-panel px-4 py-2 text-sm text-ink-muted hover:border-accent hover:text-ink"
+              >
+                <RefreshCw size={14} /> Analyze Another Image
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>

@@ -66,9 +66,11 @@ async def detect_face(
     image_bytes = await validate_upload(file)
 
     # Run synchronous MediaPipe + OpenCV work off the async event loop.
+    from functools import partial
     loop = asyncio.get_event_loop()
     try:
-        result = await loop.run_in_executor(None, detect_and_align, image_bytes)
+        fn = partial(detect_and_align, image_bytes, original_filename=file.filename)
+        result = await loop.run_in_executor(None, fn)
     except Exception as exc:
         logger.exception("face_detect=unexpected_error")
         raise HTTPException(
@@ -98,11 +100,16 @@ async def detect_face(
     )
 
     logger.info(
-        "face_detect=complete status=%s face_count=%d confidence=%s",
+        "face_detect=complete status=%s face_count=%d confidence=%s extracted=%s",
         result.status.value,
         result.face_count,
         result.detection_confidence,
+        result.extracted_face_path,
     )
+
+    extracted_url = None
+    if result.extracted_face_filename:
+        extracted_url = f"/api/face/extracted/{result.extracted_face_filename}"
 
     return FaceDetectResponse(
         success=result.success,
@@ -117,4 +124,67 @@ async def detect_face(
         aligned_face_b64=result.aligned_face_b64,
         model=result.model,
         message=result.message,
+        extracted_face_path=result.extracted_face_path,
+        extracted_face_filename=result.extracted_face_filename,
+        extracted_face_url=extracted_url,
+        document_preview_b64=result.document_preview_b64,
     )
+
+
+# ---------------------------------------------------------------------------
+# Extracted Face File Serving & Listing
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/extracted/{filename}",
+    summary="Download or view an extracted person face image",
+    description="Serves the person image extracted from a document into the extraction folder.",
+)
+async def get_extracted_face(filename: str):
+    import os
+    from pathlib import Path
+    from fastapi.responses import FileResponse
+
+    clean_filename = os.path.basename(filename)
+    extract_dir = Path("extracted_faces")
+    file_path = extract_dir / clean_filename
+
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Extracted face image '{clean_filename}' not found in extraction folder.",
+        )
+
+    return FileResponse(
+        str(file_path),
+        media_type="image/jpeg",
+        filename=clean_filename,
+    )
+
+
+@router.get(
+    "/extracted",
+    summary="List all extracted person faces in the extraction folder",
+    description="Returns a list of all person faces extracted from uploaded documents.",
+)
+async def list_extracted_faces():
+    import os
+    from pathlib import Path
+
+    extract_dir = Path("extracted_faces")
+    if not extract_dir.exists():
+        return {"total": 0, "folder": str(extract_dir), "files": []}
+
+    files = []
+    for p in sorted(extract_dir.glob("*.jpg"), key=os.path.getmtime, reverse=True):
+        stat = p.stat()
+        files.append({
+            "filename": p.name,
+            "path": str(p).replace("\\", "/"),
+            "url": f"/api/face/extracted/{p.name}",
+            "size_bytes": stat.st_size,
+            "modified": stat.st_mtime,
+        })
+
+    return {"total": len(files), "folder": str(extract_dir), "files": files}
+

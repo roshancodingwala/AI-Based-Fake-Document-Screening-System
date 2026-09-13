@@ -59,4 +59,20 @@ class FaceDetectResponse(BaseModel):
     )
     model:                str = "mediapipe-face-landmarker"
     message:              Optional[str] = None
+    extracted_face_path:  Optional[str] = Field(
+        default=None,
+        description="Path on disk where the extracted person image is stored"
+    )
+    extracted_face_filename: Optional[str] = Field(
+        default=None,
+        description="Filename of the extracted person image in the extraction folder"
+    )
+    extracted_face_url:   Optional[str] = Field(
+        default=None,
+        description="Relative URL to view or download the extracted person image"
+    )
+    document_preview_b64: Optional[str] = Field(
+        default=None,
+        description="Base64 JPEG of the document page (for PDF and multi-format documents)"
+    )
 

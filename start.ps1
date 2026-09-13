@@ -4,9 +4,10 @@ Write-Host "Starting SENTRY-ID Border Screening Platform..." -ForegroundColor Gr
 Write-Host "====================================================" -ForegroundColor Cyan
 
 $root = $PSScriptRoot
+$pyCmd = if (Test-Path "$root\.venv\Scripts\python.exe") { "$root\.venv\Scripts\python.exe" } else { "python" }
 
 Write-Host "[1/2] Launching FastAPI Backend on http://127.0.0.1:8000 ..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$root\sentry-id-backend'; python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$root\sentry-id-backend'; & '$pyCmd' -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
 Start-Sleep -Seconds 2
 

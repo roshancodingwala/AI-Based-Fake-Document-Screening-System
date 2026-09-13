@@ -3,6 +3,7 @@ import { ArrowRight, ScanFace, TriangleAlert, RefreshCw } from "lucide-react";
 import { Panel, PanelHeader, DemoTag, RiskBadge } from "../components/Common";
 import { identityShadow as mockShadow } from "../data/mockData";
 import { apiRequest } from "../lib/utils";
+import { getBiometricSession } from "../lib/biometricSession";
 
 function IdentityCard({
   title,
@@ -10,21 +11,38 @@ function IdentityCard({
   docType,
   docNumber,
   photoLabel,
+  photoBase64,
 }: {
   title: string;
   name: string;
   docType: string;
   docNumber: string;
   photoLabel: string;
+  photoBase64?: string | null;
 }) {
   return (
     <Panel className="flex-1">
       <PanelHeader title={title} />
       <div className="flex flex-col items-center gap-3 p-5">
-        <div className="flex h-28 w-28 items-center justify-center rounded-full border-2 border-dashed border-base-border2 bg-base-panel2 text-ink-faint">
-          <ScanFace size={40} />
+        <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-2 border-accent/40 bg-base-panel2 text-ink-faint shadow-inner">
+          {photoBase64 ? (
+            <img
+              src={`data:image/jpeg;base64,${photoBase64}`}
+              alt={title}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <ScanFace size={40} />
+          )}
         </div>
-        <p className="text-[11px] text-ink-faint">{photoLabel}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-[11px] text-ink-faint">{photoLabel}</p>
+          {photoBase64 && (
+            <span className="rounded bg-accent/20 px-1.5 py-0.5 text-[9px] font-semibold text-accent border border-accent/30">
+              Live Biometric
+            </span>
+          )}
+        </div>
         <div className="w-full space-y-1.5 pt-2 text-center">
           <p className="text-base font-bold text-ink">{name}</p>
           <p className="font-mono text-xs text-ink-muted">{docType} · {docNumber}</p>
@@ -129,7 +147,14 @@ export default function Identity() {
       </div>
 
       <div className="flex flex-col items-stretch gap-4 lg:flex-row lg:items-center">
-        <IdentityCard title="Current Identity" name={current.name} docType={current.docType} docNumber={current.docNumber} photoLabel={current.photoLabel} />
+        <IdentityCard
+          title="Current Identity"
+          name={current.name}
+          docType={current.docType}
+          docNumber={current.docNumber}
+          photoLabel={getBiometricSession()?.alignedFaceB64 ? "Live Biometric Capture" : current.photoLabel}
+          photoBase64={getBiometricSession()?.alignedFaceB64}
+        />
 
         <div className="flex flex-col items-center gap-2 px-2">
           <ArrowRight className="hidden text-accent lg:block" size={28} />

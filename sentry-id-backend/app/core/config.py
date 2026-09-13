@@ -25,9 +25,20 @@ class Settings(BaseSettings):
     #   postgresql+psycopg2://user:password@host:5432/sentry_id
     database_url: str = "postgresql+psycopg2://sandeepraj@localhost:5432/sentry_id"
 
-    # --- File upload limits ------------------------------------------------
+    # --- File upload limits & document formats ----------------------------
     max_upload_size_mb: int = 10
-    allowed_content_types: tuple = ("image/jpeg", "image/png", "application/pdf")
+    allowed_content_types: tuple = (
+        "image/jpeg",
+        "image/jpg",
+        "image/pjpeg",
+        "image/png",
+        "application/pdf",
+        "image/webp",
+        "image/bmp",
+        "image/tiff",
+        "application/octet-stream",
+    )
+    extracted_faces_dir: str = "extracted_faces"
 
     # --- Risk engine thresholds --------------------------------------------
     risk_low_max: int = 39
