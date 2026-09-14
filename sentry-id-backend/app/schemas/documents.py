@@ -22,10 +22,17 @@ class OCRResponse(BaseModel):
     ocr_confidence: float = Field(..., ge=0, le=100)
     engine: str = "paddleocr-demo"
     is_simulated: bool = True
+    validation_score: Optional[int] = None
+    score_breakdown: Optional[dict[str, float]] = None
+    flags: list[dict] = []
+    mrz_found: bool = False
+    detected_document_type: Optional[str] = None
+    barcodes: list[dict] = []
 
 
 class ValidationRequest(BaseModel):
     fields: OCRFields
+    document_type: str = "Passport"
 
 
 class ValidationResponse(BaseModel):

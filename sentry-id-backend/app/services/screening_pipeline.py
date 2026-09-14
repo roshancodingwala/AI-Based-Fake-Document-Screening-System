@@ -10,6 +10,7 @@ modules); this file only wires them together and builds the officer-facing
 explanation. Persists a VerificationRecord and a hash-only blockchain audit
 row for every run.
 """
+import asyncio
 import json
 import logging
 
@@ -24,6 +25,7 @@ from app.schemas.risk import RiskCalculateRequest, ScreenResponse
 from app.services.cross_checkpoint_service import get_cross_checkpoint_service
 from app.services.document_status_service import get_document_status_service
 from app.services.dna_service import get_dna_service
+from app.services.face_detection_service import detect_and_align, DetectionStatus
 from app.services.face_service import get_face_service
 from app.services.fraud_network_service import get_fraud_network_service
 from app.services.identity_service import get_identity_search_service
@@ -46,6 +48,18 @@ def _build_reasons(response_parts: dict) -> list[str]:
     face = response_parts["face"]
     if not face.match:
         reasons.append(f"Face match score of {face.similarity_score:.0%} is below the confident-match threshold.")
+
+    face_det = response_parts.get("face_detection")
+    if face_det is not None and not face_det.success:
+        status_val = face_det.status or "UNKNOWN"
+        if status_val == DetectionStatus.NO_FACE_DETECTED:
+            reasons.append("No face detected in the document image — biometric check could not be performed.")
+        elif status_val == DetectionStatus.MULTIPLE_FACES:
+            reasons.append(f"Multiple faces detected ({face_det.face_count}) in the document — possible tampering or composite image.")
+        elif status_val in (DetectionStatus.LOW_QUALITY, DetectionStatus.INVALID_IMAGE):
+            reasons.append(f"Document face image is of insufficient quality for biometric verification ({status_val}).")
+        elif status_val == DetectionStatus.ALIGNMENT_FAILED:
+            reasons.append("Face was detected but geometric alignment failed — image may be distorted.")
 
     identity_search: IdentitySearchResponse = response_parts["identity_search"]
     for match in identity_search.matches:
@@ -107,7 +121,7 @@ class ScreeningPipeline:
         document_number = ocr.fields.document_number or "UNKNOWN"
 
         # 2. Validation
-        validation = validation_service.validate(ocr.fields, document_type)
+        validation = validation_service.validate(ocr.fields, document_type, ocr_response=ocr)
 
         # 3. Tampering
         tampering = await tampering_service.analyze(document_image)
@@ -116,6 +130,61 @@ class ScreeningPipeline:
         # the document photo against itself as a neutral placeholder so the
         # pipeline can still run end-to-end in the prototype).
         face = await face_service.verify(document_image, live_photo or document_image)
+
+        # 4b. Real MediaPipe face detection & alignment.
+        # Runs the genuine computer-vision pipeline on the document image;
+        # results are surfaced in ScreenResponse.face_detection and any
+        # failures are reflected in the reasons / risk signals.
+        face_detect_result = None
+        try:
+            from functools import partial
+            loop = asyncio.get_event_loop()
+            _detect_fn = partial(detect_and_align, document_image)
+            _raw = await loop.run_in_executor(None, _detect_fn)
+            # Convert service dataclass → Pydantic response model
+            from app.schemas.face import AlignmentInfoModel, LandmarksModel, FaceDetectResponse
+            _lm = None
+            if _raw.landmarks is not None:
+                _lm = LandmarksModel(
+                    left_eye=_raw.landmarks.left_eye,
+                    right_eye=_raw.landmarks.right_eye,
+                    nose=_raw.landmarks.nose,
+                    mouth_left=_raw.landmarks.mouth_left,
+                    mouth_right=_raw.landmarks.mouth_right,
+                )
+            _align = AlignmentInfoModel(
+                performed=_raw.alignment.performed,
+                rotation_angle=_raw.alignment.rotation_angle,
+                output_width=_raw.alignment.output_width,
+                output_height=_raw.alignment.output_height,
+            )
+            _extracted_url = None
+            if _raw.extracted_face_filename:
+                _extracted_url = f"/api/face/extracted/{_raw.extracted_face_filename}"
+            face_detect_result = FaceDetectResponse(
+                success=_raw.success,
+                status=_raw.status.value,
+                face_detected=_raw.face_detected,
+                face_count=_raw.face_count,
+                detection_confidence=_raw.detection_confidence,
+                landmarks_detected=_raw.landmarks_detected,
+                landmarks=_lm,
+                bounding_box=_raw.bounding_box,
+                alignment=_align,
+                aligned_face_b64=_raw.aligned_face_b64,
+                model=_raw.model,
+                message=_raw.message,
+                extracted_face_path=_raw.extracted_face_path,
+                extracted_face_filename=_raw.extracted_face_filename,
+                extracted_face_url=_extracted_url,
+                document_preview_b64=_raw.document_preview_b64,
+            )
+            logger.info(
+                "pipeline=face_detection status=%s confidence=%s extracted=%s",
+                _raw.status.value, _raw.detection_confidence, _raw.extracted_face_path,
+            )
+        except Exception as _exc:
+            logger.warning("pipeline=face_detection_error err=%s", _exc)
 
         # Resolve identity: prefer explicit identity_id, else look up by
         # document number in the demo registry.
@@ -167,6 +236,7 @@ class ScreeningPipeline:
 
         parts = {
             "validation": validation, "tampering": tampering, "face": face,
+            "face_detection": face_detect_result,
             "identity_search": identity_search, "document_status": document_status,
             "document_dna": document_dna, "cross_checkpoint": cross_checkpoint,
             "fraud_network": fraud_network,
@@ -205,6 +275,7 @@ class ScreeningPipeline:
             validation=validation,
             tampering=tampering,
             face=face,
+            face_detection=face_detect_result,
             identity_search=identity_search,
             document_status=document_status,
             document_dna=document_dna,

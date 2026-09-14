@@ -42,8 +42,11 @@ httpx>=0.27
 #
 paddleocr>=2.7               # app/services/ocr_service.py -> PaddleOCRService
 paddlepaddle>=2.6
+zxing-cpp>=3.0                # Aadhaar QR / DL barcode decoding in OCR
+qrcode>=8.0                   # Barcode & QR rendering in OCR
 torch>=2.2                   # app/services/tampering_service.py / face_service.py
 insightface>=0.7.3           # app/services/face_service.py -> InsightFaceService
 onnxruntime>=1.17
 faiss-cpu>=1.8.0             # app/services/identity_service.py -> FAISS-backed index
 qdrant-client>=1.8           # app/services/identity_service.py -> Qdrant-backed index
+

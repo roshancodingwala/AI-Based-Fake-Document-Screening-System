@@ -9,7 +9,7 @@ from app.schemas.documents import (
     TamperingResponse,
     ValidationResponse,
 )
-from app.schemas.face import FaceVerifyResponse
+from app.schemas.face import FaceDetectResponse, FaceVerifyResponse
 from app.schemas.fraud import FraudNetworkResponse
 from app.schemas.identity import IdentitySearchResponse
 from app.schemas.intelligence import CrossCheckpointResponse
@@ -54,6 +54,8 @@ class ScreenResponse(BaseModel):
     validation: ValidationResponse
     tampering: TamperingResponse
     face: FaceVerifyResponse
+    # Real MediaPipe face detection result (None if detection was skipped or failed at startup)
+    face_detection: Optional[FaceDetectResponse] = None
     identity_search: IdentitySearchResponse
     document_status: DocumentStatusResponse
     document_dna: DocumentDNAResponse

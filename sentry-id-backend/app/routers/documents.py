@@ -39,7 +39,7 @@ async def validate_document(
     request: ValidationRequest,
     validation_service: ValidationService = Depends(get_validation_service),
 ):
-    return validation_service.validate(request.fields, document_type="Passport")
+    return validation_service.validate(request.fields, document_type=request.document_type)
 
 
 @router.post("/tampering", response_model=TamperingResponse)

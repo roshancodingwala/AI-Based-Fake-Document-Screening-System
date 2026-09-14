@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # SQLite by default so the prototype runs with zero external services.
     # Swap DATABASE_URL for a real Postgres DSN in production, e.g.:
     #   postgresql+psycopg2://user:password@host:5432/sentry_id
-    database_url: str = "postgresql+psycopg2://sandeepraj@localhost:5432/sentry_id"
+    database_url: str = "sqlite:///./sentry_id.db"
 
     # --- File upload limits & document formats ----------------------------
     max_upload_size_mb: int = 10
